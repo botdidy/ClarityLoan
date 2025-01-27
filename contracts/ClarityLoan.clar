@@ -18,4 +18,37 @@
         (ok "Loan created successfully")
     ))
 
+(define-public (repay-loan (lender principal) (amount uint))
+    (begin
+        ;; First verify that the lender is valid
+        (asserts! (is-some (map-get? loans { lender: lender, borrower: tx-sender })) (err "Invalid lender"))
+        (let ((loan (map-get? loans { lender: lender, borrower: tx-sender })))
+            ;; Ensure the loan exists
+            (asserts! (is-some loan) (err "Loan not found"))
+            (let ((loan-data (unwrap! loan (err "Unexpected error"))))
+                ;; Ensure loan has not already been repaid
+                (asserts! (not (get repaid loan-data)) (err "Loan has already been repaid"))
+                ;; Ensure repayment amount matches the total owed
+                (let ((total-owed (+ (get amount loan-data) (get interest loan-data)))
+                      (loan-id { lender: lender, borrower: tx-sender }))
+                    (asserts! (is-eq amount total-owed) (err "Incorrect repayment amount"))
+                    ;; Update the loan status to repaid
+                    (asserts! (is-some (map-get? loans loan-id)) (err "Loan not found during update"))
+                    (map-set loans
+                        loan-id
+                        { amount: (get amount loan-data), interest: (get interest loan-data), due-block: (get due-block loan-data), repaid: true })
+                    (ok "Loan repaid successfully")
+                )
+            )
+        )
+    ))
 
+(define-public (view-loan (lender principal) (borrower principal))
+    (begin
+        (let ((loan (map-get? loans { lender: lender, borrower: borrower })))
+            (if (is-some loan)
+                (ok (unwrap! loan (err "Unexpected error")))
+                (err "Loan not found")
+            )
+        )
+    ))
